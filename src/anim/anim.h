@@ -1,7 +1,7 @@
 /* FILE NAME   : 'anim.h'
  * PURPOSE     : Animation module header file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 25.04.2023.
+ * LAST UPDATE : 07.04.2023.
  * NOTE        : Module namespace 'prj'.
  */
 
@@ -13,6 +13,9 @@
 #include "win/win.h"
 #include "render/render.h"
 #include "input/input.h"
+
+#include "utility/physics/ef_force_lines.h"
+#include "utility/threads_pool/threads_pool.hpp"
 
 /* Project namespace */
 namespace prj
@@ -56,8 +59,8 @@ namespace prj
      */
     void SelectAddCharge( coordd Coord );
 
-    /* Reevaluation flag */
-    BOOL Reeval = FALSE;
+    /* Reevaluation and redrawing flags */
+    BOOL Reeval {FALSE}, Redraw {TRUE};
 
     /* Reevaluation setting function */
     void SetReevaluation( void );
@@ -84,32 +87,14 @@ namespace prj
       { }
 
       /* Values updating function */
-      void Apply( void )
-      {
-        if (Anim->LinesPerCharge != LinesPerCharge)
-          Anim->LinesPerCharge = LinesPerCharge, Anim->SetReevaluation();
-
-        if (Anim->LineLengthCoeff != LineLengthCoeff)
-          Anim->LineLengthCoeff = LineLengthCoeff, Anim->SetReevaluation();
-
-        if (Anim->LineEvalLength != LineEvalLength)
-          Anim->LineEvalLength = LineEvalLength, Anim->SetReevaluation();
-      } /* End of 'Apply' function */
+      void Apply( void );
     }; /* end of 'eval_settings' class */
 
-    /* Charge data structure */
-    struct charge
-    {
-      coordd Coord;
-      dbl Charge, Size;
-      std::vector<std::vector<coordf>> Lines {};
-    }; /* end of 'charge' structure */
-
     /* Charges pool */
-    std::list<charge> Charges {};
+    std::list<phys::charge> Charges {};
 
     /* Current selected charge */
-    charge *SelectedCharge {nullptr};
+    phys::charge *SelectedCharge {nullptr};
 
     /* Input actions state enum */
     enum class input_state : UINT
@@ -123,163 +108,22 @@ namespace prj
     /* Input data field */
     input Input {win::hWnd, win::MouseWheel};
 
-    /* Field line points sequence evaluator */
-    friend class field_line;
-    class field_line
-    {
-    private:
-      /* Current position */
-      __m128d Pos;
-
-      /* Evaluation environment */
-      const std::list<charge> &Charges;
-      dbl Length;
-
-      /* Auxilary packed data */
-      const __m128d
-        LengthPack {_mm_set1_pd(Length)},
-        HalfPack {_mm_set1_pd(0.5)},
-        Rev3 {_mm_set1_pd(1 / 3.0)},
-        Rev6 {_mm_set1_pd(1 / 6.0)};
-
-    public:
-      /* Evaluations continuing flag */
-      bool Continue {true};
-
-    private:
-      /* Force evaluation function
-       * ARGUMENTS:
-       *    - Position:
-       *        __m128d PosVec;
-       * RETURNS:
-       *   (__m128d) Force vector.
-       */
-      inline __m128d __vectorcall EvalForce( __m128d PosVec )
-      {
-        __m128d Res = _mm_setzero_pd();
-
-        for (const auto &Elm : Charges)
-        {
-          auto Dir = _mm_sub_pd(PosVec, _mm_load_pd((dbl *)&Elm.Coord));
-
-          auto Len = _mm_mul_pd(Dir, Dir);
-          Len = _mm_hadd_pd(Len, Len);
-
-          dbl SqrLength;
-          _mm_store_sd(&SqrLength, Len);
-
-          auto DistCorr = _mm_mul_pd(_mm_mul_pd(Len, Len), Len);
-          DistCorr = _mm_sqrt_pd(DistCorr);
-
-          auto Val = _mm_mul_pd(_mm_set1_pd(Elm.Charge), Dir);
-          Val = _mm_div_pd(Val, DistCorr);
-
-          Res = _mm_add_pd(Res, Val);
-        }
-
-        return Res;
-      } /* End of 'EvalForce' function */
-
-      /* Normalized force evaluation function.
-       * ARGUMENTS:
-       *    - Position:
-       *        __m128d PosVec;
-       * RETURNS:
-       *   (__m128d) Force vector.
-       */
-      inline __m128d __vectorcall EvalForceNorm( __m128d PosVec )
-      {
-        auto Force = EvalForce(PosVec);
-
-        auto ForceLen = _mm_mul_pd(Force, Force);
-        ForceLen = _mm_hadd_pd(ForceLen, ForceLen);
-
-        return _mm_div_pd(Force, _mm_sqrt_pd(ForceLen));
-      } /* End of 'EvalForceNorm' function */
-
-      /* Length multiplied force evaluation function.
-       * ARGUMENTS:
-       *    - Position:
-       *        __m128d PosVec;
-       * RETURNS:
-       *   (__m128d) Force vector.
-       */
-      inline __m128d __vectorcall EvalForceLen( __m128d PosVec )
-      {
-        auto Force = EvalForce(PosVec);
-
-        return _mm_mul_pd(Force, LengthPack);
-      } /* End of 'EvalForceLen' function */
-
-      /* Normalized and length multiplied force evaluation function.
-       * ARGUMENTS:
-       *    - Position:
-       *        __m128d PosVec;
-       * RETURNS:
-       *   (__m128d) Force vector.
-       */
-      inline __m128d __vectorcall EvalForceNormLen( __m128d PosVec )
-      {
-        auto Force = EvalForce(PosVec);
-
-        auto ForceLen = _mm_mul_pd(Force, Force);
-        ForceLen = _mm_hadd_pd(ForceLen, ForceLen);
-
-        return _mm_div_pd(_mm_mul_pd(Force, LengthPack), _mm_sqrt_pd(ForceLen));
-      } /* End of 'EvalForceNormLen' function */
-
-    public:
-      field_line( const coordd &BasePos, const anim &Anim ) :
-        Pos {_mm_load_pd((dbl *)&BasePos)},
-        Charges {Anim.Charges},
-        Length {Anim.LineLengthCoeff}
-      {
-      }
-
-      /* Different implementations of next point getting function */
-      /* Next point evaluation function.
-       * RETURNS:
-       *   (coordf) Next coordinate.
-       */
-      coordf Next1( void );
-
-      /* Next point evaluation function.
-       * RETURNS:
-       *   (coordf) Next coordinate.
-       */
-      coordf Next2( void );
-
-      /* Next point evaluation function.
-       * RETURNS:
-       *   (coordf) Next coordinate.
-       */
-      coordf Next3( void );
-
-      /* Next point evaluation function.
-       * RETURNS:
-       *   (coordf) Next coordinate.
-       */
-      coordf Next4( void );
-    };
-
     /* Line threaded evaluation data */
-    struct trhead_data
+    struct thread_data
     {
-      field_line LineEval;
+      phys::ef_force_line LineEval;
       std::vector<coordf> *LineData;
-    }; /* end of 'trhead_data' structure */
 
-    /* Single thread data */
-    struct eval_trhead
-    {
-      std::vector<trhead_data *> Data;
-      std::thread *Thread;
-      bool Run {true};
-    }; /* end of 'eval_trhead' structure */
+      /* Default constructor */
+      thread_data( void ) = default;
 
-    /* Threads pool */
-    std::vector<trhead_data> ThreadsDataBulk;
-    std::vector<eval_trhead> ThreadsPool;
+      /* Constructor from data */
+      thread_data( phys::ef_force_line &&Line, std::vector<coordf> *LinePts ) :
+        LineEval {Line}, LineData {LinePts}
+      { }
+    }; /* end of 'thread_data' structure */
+
+    util::threads_pool<thread_data, 8> ThreadsPool;
 
     /* Lines data by threads update flag */
     bool ThreadsDataUpdated = false;

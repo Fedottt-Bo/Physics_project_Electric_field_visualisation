@@ -25,6 +25,15 @@
     <Filter Include="Source Files\animation\render">
       <UniqueIdentifier>{04f98d0c-ad58-4a4d-8205-d949c44cccda}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\utility">
+      <UniqueIdentifier>{5db7bf1a-d659-494a-9e1f-2af38c990ab6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\utility\threads_pool">
+      <UniqueIdentifier>{bf11868e-f11e-4f69-8983-14510ce59b00}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\utility\physics">
+      <UniqueIdentifier>{c2b0d02e-5a42-4fe4-a069-a07ae96c9cb1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\win\win.cpp">
@@ -44,6 +53,9 @@
     </ClCompile>
     <ClCompile Include="src\render\render.cpp">
       <Filter>Source Files\animation\render</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utility\physics\ef_force_lines.cpp">
+      <Filter>Source Files\utility\physics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -76,6 +88,15 @@
     </ClInclude>
     <ClInclude Include="res\resource.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utility\threads_pool\threads_pool.hpp">
+      <Filter>Source Files\utility\threads_pool</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utility\physics\ef_force_lines.h">
+      <Filter>Source Files\utility\physics</Filter>
+    </ClInclude>
+    <ClInclude Include="src\utility\physics\physics_def.h">
+      <Filter>Source Files\utility\physics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

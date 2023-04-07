@@ -1,7 +1,7 @@
 /* FILE NAME   : 'render.h'
  * PURPOSE     : Render module header file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 28.04.2023.
+ * LAST UPDATE : 07.04.2023.
  * NOTE        : Module namespace 'prj'.
  */
 
@@ -25,7 +25,7 @@ namespace prj
   {
   private:
     /* Window handle */
-    HWND hWnd;
+    HWND hWnd {};
 
     /* Direct2D factories */
     ComPtr<ID2D1Factory> Factory {};

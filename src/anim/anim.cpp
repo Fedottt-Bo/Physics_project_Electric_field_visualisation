@@ -1,58 +1,13 @@
 /* FILE NAME   : 'anim.cpp'
  * PURPOSE     : Animation module implementation file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 25.04.2023.
+ * LAST UPDATE : 07.04.2023.
  * NOTE        : Module namespace 'prj'.
  */
 
 #include <pch.h>
 
-#include <string>
-#include <fstream>
-#include <streambuf>
-
 #include "anim.h"
-
-#if 0 // defined(_DEBUG)
-/* Debug timer very auxilary class */
-class timer
-{
-private:
-  dbl Freq;
-  UINT64 Start, Prev;
-
-public:
-  timer( void )
-  {
-    UINT64 IFreq;
-    QueryPerformanceFrequency((LARGE_INTEGER *)&IFreq), Freq = IFreq;
-
-    QueryPerformanceCounter((LARGE_INTEGER *)&Start), Prev = Start;
-  }
-
-  void operator()( const std::string_view &Str = nullptr )
-  {
-    UINT64 Cur;
-    QueryPerformanceCounter((LARGE_INTEGER *)&Cur);
-
-    if (Str.empty())
-      printf("Timer call: delta = %lf, global = %lf\n",
-             (Cur - Prev) / Freq, (Cur - Start) / Freq);
-    else
-      printf("%s: delta = %lf, global = %lf\n", Str.data(),
-             (Cur - Prev) / Freq, (Cur - Start) / Freq);
-    Prev = Cur;
-  }
-};
-#else
-/* Empty debug timer class */
-class timer
-{
-public:
-  timer( void ) = default;
-  void operator()( const std::string_view & = nullptr ) {}
-};
-#endif
 
 /* Project namespace */
 namespace prj
@@ -62,6 +17,23 @@ namespace prj
   {
     /* Get time frequency */
     QueryPerformanceFrequency((LARGE_INTEGER *)&RenderTimeFreq);
+
+    /* Configure threads pool */
+    ThreadsPool.SetFunction([this]( thread_data *Data ) -> bool
+      {
+        if (Data->LineData->size() >= Data->LineData->capacity())
+          return true;
+
+        Data->LineData->emplace_back(Data->LineEval.Next3());
+
+        if (Data->LineEval.Continue)
+        {
+          ThreadsDataUpdated = true;
+          return false;
+        }
+        else
+          return true;
+      });
 
     /* Launch window */
     win::Create("Very cool animation class for physics.", "Electric Field Visualization");
@@ -131,18 +103,10 @@ namespace prj
   void anim::ClearScene( void )
   {
     /* Stop all threads */
-    for (auto &Elm : ThreadsPool)
-    {
-      Elm.Run = false;
-
-      Elm.Thread->join();
-      delete Elm.Thread;
-    }
-
+    ThreadsPool.Terminate();
     ThreadsDataUpdated = TRUE;
 
-    ThreadsPool.clear();
-    ThreadsDataBulk.clear();
+    /* Clear charges pool */
     Charges.clear();
   } /* End of 'anim::ClearScene' function */
 
@@ -156,7 +120,7 @@ namespace prj
     Charges.push_back({Coord, MinCharge, MinChargeSize});
     SelectedCharge = &Charges.back();
 
-    Reeval = TRUE;
+    SetReevaluation();
   } /* End of 'anim::AddCharge' function */
 
   /* Charge at position selecting, otherwise adding function
@@ -196,6 +160,7 @@ namespace prj
       Reeval = TRUE;
 
       // Some actions
+      ThreadsPool.Terminate();
     }
   } /* End of 'anim::SetReevaluation' function */
 
@@ -205,17 +170,21 @@ namespace prj
     if (!WasInit)
       return;
 
-    BOOL IsClientArea {hWnd == GetForegroundWindow() &&
-                       DefWindowProcA(hWnd, WM_NCHITTEST, 0, MAKELPARAM(Input.Mx, Input.My)) == HTCLIENT};
+    /* Check window client area */
+    BOOL IsClientArea {false};
+    {
+      POINT pt;
+      GetCursorPos(&pt);
 
-    timer DebugTimer {};
+      auto HT = DefWindowProcA(win::hWnd, WM_NCHITTEST, 0, MAKELPARAM(pt.x, pt.y));
+      if (HT == HTCLIENT)
+        IsClientArea = true;
+    }
 
     Input.InputResponce();
 
     if (Input.Keys[VK_MENU] && Input.KeysClick['\r'])
       FlipFullScreen();
-
-    DebugTimer("Input");
 
     dbl
       MX {Left + ((Right - Left) * Input.Mx) / win::W},
@@ -256,8 +225,6 @@ namespace prj
       break;
     }
 
-    DebugTimer("Selecting");
-
     switch (InputState)
     {
     case prj::anim::input_state::Move:
@@ -270,6 +237,8 @@ namespace prj
         Right += XOff;
         Top += YOff;
         Bottom += YOff;
+
+        Redraw = true;
       }
 
       [[fallthrough]];
@@ -297,13 +266,15 @@ namespace prj
         Left = MX - XNegOff;
         Top = MY - YNegOff;
         Bottom = MY + YPosOff;
+
+        Redraw = true;
       }
 
       break;
     case prj::anim::input_state::Charge:
       if (Input.KeysClick[VK_DELETE])
       {
-        Charges.remove_if([&]( const charge &Ref ) -> bool { return &Ref == SelectedCharge; });
+        Charges.remove_if([&]( const phys::charge &Ref ) -> bool { return &Ref == SelectedCharge; });
 
         SelectedCharge = nullptr;
         InputState = input_state::None;
@@ -345,21 +316,12 @@ namespace prj
       break;
     }
 
-    DebugTimer("Responce from input");
-
     if (Reeval)
     {
+      UINT64 Beg, End;
+
       /* Stop all threads */
-      for (auto &Elm : ThreadsPool)
-      {
-        Elm.Run = false;
-
-        Elm.Thread->join();
-        delete Elm.Thread;
-      }
-
-      ThreadsPool.clear();
-      ThreadsDataBulk.clear();
+      ThreadsPool.Terminate();
 
       /* Init lines */
       for (auto &Elm : Charges)
@@ -369,109 +331,46 @@ namespace prj
         if (Elm.Charge < 0)
           continue;
 
-        Elm.Lines.resize((size_t)round(LinesPerCharge * abs(Elm.Charge)));
+        Elm.Lines.reserve((size_t)round(LinesPerCharge * abs(Elm.Charge)));
 
-        for (int i = 0; i < Elm.Lines.size(); i++)
+        for (int i = 0; i < Elm.Lines.capacity(); i++)
         {
-          dbl Angle {(M_PI * (i << 1)) / (dbl)Elm.Lines.size()};
+          dbl Angle {(M_PI * (i << 1)) / (dbl)Elm.Lines.capacity()};
           coordd Base {Elm.Coord.X + Elm.Size * cos(Angle) * 2.0,
                        Elm.Coord.Y + Elm.Size * sin(Angle) * 2.0};
 
-          Elm.Lines[i].reserve(LineEvalLength);
-          Elm.Lines[i].push_back(coordf {(flt)Elm.Coord.X, (flt)Elm.Coord.Y});
-          Elm.Lines[i].push_back(coordf {(flt)Base.X, (flt)Base.Y});
+          auto &Line {Elm.Lines.emplace_back()};
 
-          ThreadsDataBulk.push_back({field_line {Base, *this}, Elm.Lines.data() + i});
+          Line.reserve(LineEvalLength);
+          Line.push_back(coordf {(flt)Elm.Coord.X, (flt)Elm.Coord.Y});
+          Line.push_back(coordf {(flt)Base.X, (flt)Base.Y});
+
+          ThreadsPool.AddTask(phys::ef_force_line {Base, LineLengthCoeff, Charges}, &Line);
         }
       }
 
       /* Start threads */
-      {
-        int Threads {(int)std::thread::hardware_concurrency() - 2};
-        if (Threads < 2)
-          Threads = 2;
-        else if (Threads > ThreadsDataBulk.size())
-          Threads = ThreadsDataBulk.size();
-        dbl LinesPerThread {(dbl)ThreadsDataBulk.size() / Threads};
-
-        const auto ThreadFunc {[this]( eval_trhead *Data )
-          {
-            bool WasReeval = true;
-
-            while (Data->Run && WasReeval)
-            {
-              WasReeval = false;
-
-              for (auto &Elm : Data->Data)
-              {
-                if (Elm->LineEval.Continue &&
-                    Elm->LineData->size() < Elm->LineData->capacity())
-                {
-                  ThreadsDataUpdated = WasReeval = TRUE;
-
-                  int i = 12;
-
-                  do
-                  {
-                    Elm->LineData->emplace_back(Elm->LineEval.Next3());
-                  } while (Elm->LineEval.Continue && i-- &&
-                           Elm->LineData->size() < Elm->LineData->capacity());
-                }
-              }
-
-              Sleep(0);
-            }
-          }};
-
-        ThreadsPool.reserve(Threads);
-        int lines = 0;
-        for (int i = 0; i < Threads - 1; i++)
-        {
-          int cur_lines = ceil((i + 1) * LinesPerThread) - lines;
-
-          auto &Data = ThreadsPool.emplace_back();
-
-          for (int j = 0; j < cur_lines; j++)
-            Data.Data.emplace_back(ThreadsDataBulk.data() + lines + j);
-
-          Data.Thread = new std::thread {ThreadFunc, &Data};
-
-          lines += cur_lines;
-        }
-
-        if (Threads > 0)
-        {
-          int cur_lines = ThreadsDataBulk.size() - lines;
-
-          auto &Data = ThreadsPool.emplace_back();
-
-          for (int j = 0; j < cur_lines; j++)
-            Data.Data.emplace_back(ThreadsDataBulk.data() + lines + j);
-
-          Data.Thread = new std::thread {ThreadFunc, &Data};
-
-          lines += cur_lines;
-        }
-      }
+      ThreadsPool.Run();
 
       ThreadsDataUpdated = true;
+      Redraw = true;
     }
 
     Reeval = FALSE;
-    DebugTimer("Reevaluation");
 
     /* Not more 24 frames per second can be rendered */
     UINT64 Time;
     QueryPerformanceCounter((LARGE_INTEGER *)&Time);
 
+    Redraw = Redraw || ThreadsDataUpdated;
+
     if (24 * (Time - RenderTime) >= RenderTimeFreq)
     {
       Render();
 
+      Redraw = FALSE;
       RenderTime = Time;
     }
-
-    DebugTimer("Render");
   } /* End of 'anim::Responce' function */
 
   /* Render function */
@@ -511,7 +410,7 @@ namespace prj
       TmpCharges {ChargesBulk.data(), ChargesBulk.size()};
 
     /* Call renderer */
-    Renderer.Render(TmpCharges, {Left, Top}, {Right, Bottom});
+    Renderer.Render(TmpCharges, {(flt)Left, (flt)Top}, {(flt)Right, (flt)Bottom});
   } /* End of 'anim::Render' function */
 
   /* Background erasion callback.
@@ -535,6 +434,19 @@ namespace prj
   {
     // No action - all drawing in render
   } /* End of 'anim::Paint' function */
+
+  /* Values updating function */
+  void anim::eval_settings::Apply( void )
+  {
+    if (Anim->LinesPerCharge != LinesPerCharge)
+      Anim->LinesPerCharge = LinesPerCharge, Anim->SetReevaluation();
+
+    if (Anim->LineLengthCoeff != LineLengthCoeff)
+      Anim->LineLengthCoeff = LineLengthCoeff, Anim->SetReevaluation();
+
+    if (Anim->LineEvalLength != LineEvalLength)
+      Anim->LineEvalLength = LineEvalLength, Anim->SetReevaluation();
+  } /* End of 'anim::eval_settings::Apply' function */
 
   /* Dialog window process functions custom data external storage */
   std::map<HWND, VOID *> DialogsDataMap {};
@@ -692,6 +604,8 @@ namespace prj
       [[fallthrough]];
     case ID_SCENE_LOADADD:
     {
+      InputState = input_state::Dialog;
+
       CHAR FileNameBuf[0x400] {};
       OPENFILENAME FileName {sizeof (OPENFILENAME), hWnd, hInstance};
       FileName.lpstrFile = FileNameBuf;
@@ -735,13 +649,17 @@ namespace prj
           MessageBoxA(hWnd, "Error while loading file!", "Error", MB_OK);
         }
         else
-          Reeval = TRUE;
+          SetReevaluation();
+
+        InputState = input_state::None;
       }
     }
       return;
     case ID_SCENE_SAVE:
       if (Charges.size() != 0)
       {
+        InputState = input_state::Dialog;
+
         CHAR FileNameBuf[0x400] {};
         OPENFILENAME FileName {sizeof (OPENFILENAME), hWnd, hInstance};
         FileName.lpstrFile = FileNameBuf;
@@ -757,6 +675,8 @@ namespace prj
           for (auto &Elm : Charges)
             File << "charge=" << Elm.Charge << " coord=" << Elm.Coord.X << ", " << Elm.Coord.Y << '\n';
         }
+
+        InputState = input_state::None;
       }
       return;
     case ID_SCENE_CLEAR:
@@ -764,174 +684,6 @@ namespace prj
       return;
     }
   } /* End of 'anim::OnMenuButton' function */
-
-  /* Next point evaluation function.
-   * RETURNS:
-   *   (coordf) Next coordinate.
-   */
-  coordf anim::field_line::Next1( void )
-  {
-    auto Offset = EvalForce(Pos);
-    auto TmpOffset = _mm_mul_pd(Offset, Offset);
-    Offset = _mm_div_pd(Offset, _mm_sqrt_pd(_mm_hadd_pd(TmpOffset, TmpOffset)));
-
-    Pos = _mm_add_pd(Pos, _mm_mul_pd(Offset, _mm_set1_pd(0.30)));
-
-    coordf Tmp;
-    _mm_store_sd((dbl *)&Tmp, _mm_castps_pd(_mm_cvtpd_ps(Pos)));
-
-    return Tmp;
-  } /* End of 'anim::field_line::Next1' function */
-
-  /* Next point evaluation function.
-   * RETURNS:
-   *   (coordf) Next coordinate.
-   */
-  coordf anim::field_line::Next2( void )
-  {
-    if (Continue)
-    {
-      auto Offset1 = EvalForceLen(Pos);
-
-      auto Offset2 = EvalForceLen(_mm_fmadd_pd(Offset1, HalfPack, Pos));
-      auto Offset3 = EvalForceLen(_mm_fmadd_pd(Offset2, HalfPack, Pos));
-      auto Offset4 = EvalForceLen(_mm_add_pd(Offset3, Pos));
-
-      auto Offset = _mm_fmadd_pd(Offset4, Rev6,
-                                 _mm_fmadd_pd(Offset3, Rev3,
-                                              _mm_fmadd_pd(Offset2, Rev3,
-                                                           _mm_mul_pd(Offset1, Rev6))));
-
-      Pos = _mm_add_pd(Offset, Pos);
-
-      for (const auto &Elm : Charges)
-      {
-        if ((*(UINT64 *)&Elm.Charge) & (1ui64 << 63))
-        {
-          auto Dir = _mm_sub_pd(Pos, _mm_load_pd((dbl *)&Elm.Coord));
-
-          auto Len = _mm_mul_pd(Dir, Dir);
-          Len = _mm_hadd_pd(Len, Len);
-
-          auto Size = _mm_set_sd(Elm.Size * 2.0);
-          Size = _mm_mul_sd(Size, Size);
-
-          if (_mm_comile_sd(Len, Size))
-          {
-            Continue = false;
-            Pos = _mm_load_pd((dbl *)&Elm.Coord);
-            break;
-          }
-        }
-      }
-    }
-
-    coordf Tmp;
-    _mm_store_sd((dbl *)&Tmp, _mm_castps_pd(_mm_cvtpd_ps(Pos)));
-
-    return Tmp;
-  } /* End of 'anim::field_line::Next2' function */
-
-  /* Next point evaluation function.
-   * RETURNS:
-   *   (coordf) Next coordinate.
-   */
-  coordf anim::field_line::Next3( void )
-  {
-    if (Continue)
-    {
-      auto Offset1 = EvalForceNormLen(Pos);
-
-      auto Offset2 = EvalForceNormLen(_mm_fmadd_pd(Offset1, HalfPack, Pos));
-      auto Offset3 = EvalForceNormLen(_mm_fmadd_pd(Offset2, HalfPack, Pos));
-      auto Offset4 = EvalForceNormLen(_mm_add_pd(Offset3, Pos));
-
-      auto Offset = _mm_fmadd_pd(Offset4, Rev6,
-                                 _mm_fmadd_pd(Offset3, Rev3,
-                                              _mm_fmadd_pd(Offset2, Rev3,
-                                                           _mm_mul_pd(Offset1, Rev6))));
-
-      auto OffsetSqr = _mm_mul_pd(Offset, Offset);
-      Offset = _mm_div_pd(_mm_mul_pd(Offset, LengthPack), _mm_sqrt_pd(_mm_hadd_pd(OffsetSqr, OffsetSqr)));
-
-      Pos = _mm_add_pd(Offset, Pos);
-
-      for (const auto &Elm : Charges)
-      {
-        if ((*(UINT64 *)&Elm.Charge) & (1ui64 << 63))
-        {
-          auto Dir = _mm_sub_pd(Pos, _mm_load_pd((dbl *)&Elm.Coord));
-
-          auto Len = _mm_mul_pd(Dir, Dir);
-          Len = _mm_hadd_pd(Len, Len);
-
-          auto Size = _mm_set_sd(Elm.Size * 2.0);
-          Size = _mm_mul_sd(Size, Size);
-
-          if (_mm_comile_sd(Len, Size))
-          {
-            Continue = false;
-            Pos = _mm_load_pd((dbl *)&Elm.Coord);
-            break;
-          }
-        }
-      }
-    }
-
-    coordf Tmp;
-    _mm_store_sd((dbl *)&Tmp, _mm_castps_pd(_mm_cvtpd_ps(Pos)));
-
-    return Tmp;
-  } /* End of 'anim::field_line::Next3' function */
-
-  /* Next point evaluation function.
-   * RETURNS:
-   *   (coordf) Next coordinate.
-   */
-  coordf anim::field_line::Next4( void )
-  {
-    if (Continue)
-    {
-      auto Offset1 = EvalForceNormLen(Pos);
-
-      auto Offset2 = EvalForceNormLen(_mm_fmadd_pd(Offset1, HalfPack, Pos));
-      auto Offset3 = EvalForceNormLen(_mm_fmadd_pd(Offset2, HalfPack, Pos));
-      auto Offset4 = EvalForceNormLen(_mm_add_pd(Offset3, Pos));
-
-      auto Offset = _mm_fmadd_pd(Offset4, Rev6,
-                                 _mm_fmadd_pd(Offset3, Rev3,
-                                              _mm_fmadd_pd(Offset2, Rev3,
-                                                           _mm_mul_pd(Offset1, Rev6))));
-
-      Pos = _mm_add_pd(Offset, Pos);
-
-      for (const auto &Elm : Charges)
-      {
-        if ((*(UINT64 *)&Elm.Charge) & (1ui64 << 63))
-        {
-          auto Dir = _mm_sub_pd(Pos, _mm_load_pd((dbl *)&Elm.Coord));
-
-          auto Len = _mm_mul_pd(Dir, Dir);
-          Len = _mm_hadd_pd(Len, Len);
-
-          auto Size = _mm_set_sd(Elm.Size * 2.0);
-          Size = _mm_mul_sd(Size, Size);
-
-          if (_mm_comile_sd(Len, Size))
-          {
-            Continue = false;
-            Pos = _mm_load_pd((dbl *)&Elm.Coord);
-            break;
-          }
-        }
-      }
-    }
-
-    coordf Tmp;
-    _mm_store_sd((dbl *)&Tmp, _mm_castps_pd(_mm_cvtpd_ps(Pos)));
-
-    return Tmp;
-  } /* End of 'anim::field_line::Next4' function */
 } /* end of 'prj' namespace */
 
 /* END OF 'anim.cpp' FILE */

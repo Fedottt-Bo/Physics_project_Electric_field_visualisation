@@ -2,7 +2,7 @@
  * PURPOSE     : WINAPI module.
  *               Main module functions.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 22.07.2022.
+ * LAST UPDATE : 07.04.2023.
  * NOTE        : Module namespace 'win'.
  */
 
@@ -25,8 +25,8 @@ namespace win
    *       const CHAR *ClassName, const CHAR *WindowName
    */
   win::win( HINSTANCE hInst ) :
-    hInstance(hInst), FullScreenSaveRect(), H(), W(), MouseWheel(0), IsFullScreen(FALSE),
-    IsActive(TRUE), hWnd(NULL), IsInit(FALSE)
+    hInstance {hInst}, FullScreenSaveRect {}, H {}, W {}, MouseWheel {0}, IsFullScreen {FALSE},
+    IsActive {TRUE}, hWnd {NULL}, IsInit {FALSE}, IsSizeProcess {FALSE}
   {
   } /* End of constructor */
 
@@ -107,6 +107,8 @@ namespace win
       Win = reinterpret_cast<win *>(((CREATESTRUCT *)lParam)->lpCreateParams);
       Win->hWnd = hWnd;
       SetWindowLongPtr(hWnd, 0, (UINT_PTR)((CREATESTRUCT *)lParam)->lpCreateParams);
+
+      [[fallthrough]];
     default:
       Win = reinterpret_cast<win *>(GetWindowLongPtr(hWnd, 0));
       if (Win != nullptr)
@@ -115,7 +117,7 @@ namespace win
         case WM_CREATE:
           return Win->OnCreate((CREATESTRUCT *)lParam) ? 0 : -1;
         case WM_SIZE:
-          Win->OnSize(wParam, LOWORD(lParam), HIWORD(lParam));
+          Win->OnSize((UINT)wParam, LOWORD(lParam), HIWORD(lParam));
           return 0;
         case WM_ERASEBKGND:
           return (LRESULT)Win->OnEraseBkgnd((HDC)wParam);
@@ -136,13 +138,14 @@ namespace win
         case WM_CLOSE:
           if (!Win->OnClose())
             return FALSE;
+          break;
         case WM_DESTROY:
           Win->OnDestroy();
           PostQuitMessage(30);
           return 0;
         case WM_COMMAND:
           Win->OnMenuButton((UINT)LOWORD(wParam));
-          return 0;
+          break;
         case WM_ACTIVATE:
           Win->OnActivate((UINT)LOWORD(wParam), (HWND)lParam, (BOOL)HIWORD(wParam));
           break;

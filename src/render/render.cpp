@@ -1,7 +1,7 @@
 /* FILE NAME   : 'render.cpp'
  * PURPOSE     : Render module implementation file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 30.04.2023.
+ * LAST UPDATE : 07.04.2023.
  * NOTE        : Module namespace 'prj'.
  */
 
@@ -39,9 +39,6 @@ namespace prj
   {
     Width = W, Height = H;
   
-    if (RenderTarget)
-      RenderTarget->Release();
-  
     D2D1_RENDER_TARGET_PROPERTIES Info
     {
       D2D1_RENDER_TARGET_TYPE_DEFAULT,
@@ -57,18 +54,13 @@ namespace prj
       D2D1_PRESENT_OPTIONS_NONE
     };
   
-    Factory->CreateHwndRenderTarget(&Info, &Info2, &RenderTarget);
+    Factory->CreateHwndRenderTarget(&Info, &Info2, RenderTarget.ReleaseAndGetAddressOf());
   
-    /* Create some resources once */
-    if (FirstResize)
-    {
-      FirstResize = false;
-  
-      RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {1.f, 1.f, 0.f, 1.f}, ColorBrushLines.GetAddressOf());
-      RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {0.f, 1.f, 0.f, 1.f}, ColorBrushLineDirs.GetAddressOf());
-      RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {1.f, 0.f, 0.f, 1.f}, ColorBrushPosCharge.GetAddressOf());
-      RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {0.f, 0.f, 1.f, 1.f}, ColorBrushNegCharge.GetAddressOf());
-    }
+    /* Create brushes */
+    RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {1.f, 1.f, 0.f, 1.f}, ColorBrushLines.ReleaseAndGetAddressOf());
+    RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {0.f, 1.f, 0.f, 1.f}, ColorBrushLineDirs.ReleaseAndGetAddressOf());
+    RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {1.f, 0.f, 0.f, 1.f}, ColorBrushPosCharge.ReleaseAndGetAddressOf());
+    RenderTarget->CreateSolidColorBrush(D2D1_COLOR_F {0.f, 0.f, 1.f, 1.f}, ColorBrushNegCharge.ReleaseAndGetAddressOf());
   } /* End of 'render::Resize' function */
   
   /* Lines data update function.
@@ -99,7 +91,7 @@ namespace prj
           continue;
   
         LinesSink->BeginFigure(*(D2D1_POINT_2F *)Elm.first, D2D1_FIGURE_BEGIN_HOLLOW);
-        LinesSink->AddQuadraticBeziers((D2D1_QUADRATIC_BEZIER_SEGMENT *)(Elm.first + 1), (Elm.second - 1) >> 1);
+        LinesSink->AddQuadraticBeziers((D2D1_QUADRATIC_BEZIER_SEGMENT *)(Elm.first + 1), (UINT32)((Elm.second - 1) >> 1));
         if ((Elm.second & 1) == 0)
           LinesSink->AddLine(((D2D1_POINT_2F *)Elm.first)[Elm.second - 1]);
   
@@ -107,7 +99,7 @@ namespace prj
   
         if (DrawDirs)
         {
-          const size_t DirFreq {std::clamp<size_t>(roundf(powf(Elm.second, .8f)), 2, 50)};
+          const size_t DirFreq {std::clamp<size_t>((size_t)roundf(powf((flt)Elm.second, .666f)), 2, 50)};
   
           for (size_t i {(DirFreq >> 1) + 1}; i < (Elm.second - 2); i += DirFreq)
           {
@@ -211,7 +203,7 @@ namespace prj
         TmpStr = TmpStr.substr(0, TmpStr.find('.') + 2 + 1);
   
         RenderTarget->SetTransform(TextTransform);
-        RenderTarget->DrawTextA(TmpStr.c_str(), TmpStr.size(), TextFmt.Get(),
+        RenderTarget->DrawTextA(TmpStr.c_str(), (UINT32)TmpStr.size(), TextFmt.Get(),
                                 {X - 8, Y - Size - 1, X + 8, Y - Size}, Brush.Get());
       }
     }
