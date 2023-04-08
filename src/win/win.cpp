@@ -55,7 +55,7 @@ namespace win
     if (!RegisterClass(&wc))
       exit(1);
 
-    HMENU hMenu = LoadMenuA(hInstance, (const CHAR *)IDR_MAIN_MENU);
+    hMenu = LoadMenuA(hInstance, (const CHAR *)IDR_MAIN_MENU);
     hWnd = CreateWindowExA(0, ClassName, WindowName, WS_OVERLAPPEDWINDOW,
                            CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                            nullptr, hMenu, hInstance, reinterpret_cast<VOID *>(this));

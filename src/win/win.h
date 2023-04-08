@@ -19,6 +19,7 @@ namespace win
   {
   protected:
     HWND hWnd;           /* window handle */
+    HMENU hMenu;         /* window menu handle */
     INT W, H;            /* window size */
     HINSTANCE hInstance; /* application handle */
  

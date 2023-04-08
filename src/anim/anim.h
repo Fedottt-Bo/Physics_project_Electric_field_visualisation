@@ -52,6 +52,15 @@ namespace prj
      */
     void AddCharge( coordd Coord );
 
+    /* Charge at position selecting
+     * ARGUMENTS:
+     *   - Charge position:
+     *       coordd Coord;
+     * RETURNS:
+     *   (bool) true if found.
+     */
+    bool SelectCharge( coordd Coord );
+
     /* Charge at position selecting, otherwise adding function
      * ARGUMENTS:
      *   - Charge position:

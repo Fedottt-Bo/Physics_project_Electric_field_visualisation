@@ -119,19 +119,21 @@ namespace prj
   {
     Charges.push_back({Coord, MinCharge, MinChargeSize});
     SelectedCharge = &Charges.back();
+    InputState = input_state::Charge;
 
     SetReevaluation();
   } /* End of 'anim::AddCharge' function */
 
-  /* Charge at position selecting, otherwise adding function
+  /* Charge at position selecting
    * ARGUMENTS:
    *   - Charge position:
    *       coordd Coord;
+   * RETURNS:
+   *   (bool) true if found.
    */
-  void anim::SelectAddCharge( coordd Coord )
+  bool anim::SelectCharge( coordd Coord )
   {
     SelectedCharge = nullptr;
-    InputState = input_state::Charge;
 
     for (auto &Elm : Charges)
     {
@@ -147,7 +149,20 @@ namespace prj
       }
     }
 
-    if (SelectedCharge == nullptr)
+    bool Found = SelectedCharge != nullptr;
+
+    InputState = Found ? input_state::Charge : input_state::None;
+    return Found;
+  }
+
+  /* Charge at position selecting, otherwise adding function
+   * ARGUMENTS:
+   *   - Charge position:
+   *       coordd Coord;
+   */
+  void anim::SelectAddCharge( coordd Coord )
+  {
+    if (!SelectCharge(Coord))
       AddCharge(Coord);
   } /* End of 'anim::SelectAddCharge' function */
 
@@ -197,7 +212,10 @@ namespace prj
       {
         if (Input.KeysClick[VK_LBUTTON])
         {
-          SelectAddCharge({MX, MY});
+          if (Input.Keys[VK_CONTROL])
+            SelectAddCharge({MX, MY});
+          else
+            SelectCharge({MX, MY});
 
           break;
         }
@@ -318,8 +336,6 @@ namespace prj
 
     if (Reeval)
     {
-      UINT64 Beg, End;
-
       /* Stop all threads */
       ThreadsPool.Terminate();
 
@@ -331,11 +347,13 @@ namespace prj
         if (Elm.Charge < 0)
           continue;
 
-        Elm.Lines.reserve((size_t)round(LinesPerCharge * abs(Elm.Charge)));
+        dbl CntF {round(LinesPerCharge * abs(Elm.Charge))};
+        size_t Cnt {(size_t)CntF};
+        Elm.Lines.reserve(Cnt);
 
-        for (int i = 0; i < Elm.Lines.capacity(); i++)
+        for (int i = 0; i < Cnt; i++)
         {
-          dbl Angle {(M_PI * (i << 1)) / (dbl)Elm.Lines.capacity()};
+          dbl Angle {(M_PI * (i << 1)) / CntF};
           coordd Base {Elm.Coord.X + Elm.Size * cos(Angle) * 2.0,
                        Elm.Coord.Y + Elm.Size * sin(Angle) * 2.0};
 
@@ -571,8 +589,9 @@ namespace prj
                                           "Controls (basic):\n"
                                           "  - Mouse Wheel - Zoom.\n"
                                           "  - Right Mouse Button - move 'camera'.\n"
-                                          "  - Left Mouse Button - select charge or add new."
-                                          "\n\nControls (charge selected):\n"
+                                          "  - Left Mouse Button - select charge.\n"
+                                          "  - Ctrl + Left Mouse Button - select charge or add new.\n"
+                                          "\nControls (charge selected):\n"
                                           "  - Moving mouse - move charge.\n"
                                           "  - Mouse wheel - charge value.\n"
                                           "  - Delete or backspace - delete charge.\n"
