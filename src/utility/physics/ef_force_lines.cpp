@@ -2,7 +2,7 @@
  * PURPOSE     : Physics module.
  *               Electric field force lines evaluation class implementation file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 07.04.2023.
+ * LAST UPDATE : 10.04.2023.
  * NOTE        : Module namespace 'prj::phys'.
  */
 
@@ -46,6 +46,7 @@ __m128d __vectorcall ef_force_line::EvalForce( __m128d PosVec )
 } /* End of 'ef_force_line::EvalForce' function */
 
 /* Next point evaluation function.
+ * Standard version.
  * RETURNS:
  *   (coordf) Next coordinate.
  */
@@ -53,12 +54,18 @@ coordf ef_force_line::Next1( void )
 {
   auto Pos {_mm_load_pd(this->Pos)};
 
-  auto Offset = EvalForce(Pos);
-  auto TmpOffset = _mm_mul_pd(Offset, Offset);
-  Offset = _mm_div_pd(Offset, _mm_sqrt_pd(_mm_hadd_pd(TmpOffset, TmpOffset)));
+  if (Continue)
+  {
+    auto Offset = EvalForce(Pos);
+    auto TmpOffset = _mm_mul_pd(Offset, Offset);
+    Offset = _mm_div_pd(Offset, _mm_sqrt_pd(_mm_hadd_pd(TmpOffset, TmpOffset)));
 
-  Pos = _mm_add_pd(Pos, _mm_mul_pd(Offset, _mm_set1_pd(0.30)));
-  _mm_store_pd(this->Pos, Pos);
+    Pos = _mm_add_pd(Pos, _mm_mul_pd(Offset, _mm_set1_pd(0.30)));
+    _mm_store_pd(this->Pos, Pos);
+
+    Pos = CheckIntersection(Pos);
+    _mm_store_pd(this->Pos, Pos);
+  }
 
   coordf Tmp;
   _mm_store_sd((dbl *)&Tmp, _mm_castps_pd(_mm_cvtpd_ps(Pos)));
@@ -81,7 +88,6 @@ coordf ef_force_line::Next2( void )
     const auto Rev6 {_mm_load_pd(this->Rev6)};
 
     auto Offset1 = EvalForceLen(Pos);
-
     auto Offset2 = EvalForceLen(_mm_fmadd_pd(Offset1, HalfPack, Pos));
     auto Offset3 = EvalForceLen(_mm_fmadd_pd(Offset2, HalfPack, Pos));
     auto Offset4 = EvalForceLen(_mm_add_pd(Offset3, Pos));
@@ -93,27 +99,7 @@ coordf ef_force_line::Next2( void )
 
     Pos = _mm_add_pd(Offset, Pos);
 
-    for (const auto &Elm : Charges)
-    {
-      if ((*(UINT64 *)&Elm.Charge) & (1ui64 << 63))
-      {
-        auto Dir = _mm_sub_pd(Pos, _mm_load_pd((dbl *)&Elm.Coord));
-
-        auto Len = _mm_mul_pd(Dir, Dir);
-        Len = _mm_hadd_pd(Len, Len);
-
-        auto Size = _mm_set_sd(Elm.Size * 2.0);
-        Size = _mm_mul_sd(Size, Size);
-
-        if (_mm_comile_sd(Len, Size))
-        {
-          Continue = false;
-          Pos = _mm_load_pd((dbl *)&Elm.Coord);
-          break;
-        }
-      }
-    }
-
+    Pos = CheckIntersection(Pos);
     _mm_store_pd(this->Pos, Pos);
   }
 
@@ -154,27 +140,7 @@ coordf ef_force_line::Next3( void )
 
     Pos = _mm_add_pd(Offset, Pos);
 
-    for (const auto &Elm : Charges)
-    {
-      if ((*(UINT64 *)&Elm.Charge) & (1ui64 << 63))
-      {
-        auto Dir = _mm_sub_pd(Pos, _mm_load_pd((dbl *)&Elm.Coord));
-
-        auto Len = _mm_mul_pd(Dir, Dir);
-        Len = _mm_hadd_pd(Len, Len);
-
-        auto Size = _mm_set_sd(Elm.Size * 2.0);
-        Size = _mm_mul_sd(Size, Size);
-
-        if (_mm_comile_sd(Len, Size))
-        {
-          Continue = false;
-          Pos = _mm_load_pd((dbl *)&Elm.Coord);
-          break;
-        }
-      }
-    }
-
+    Pos = CheckIntersection(Pos);
     _mm_store_pd(this->Pos, Pos);
   }
 
@@ -211,27 +177,7 @@ coordf ef_force_line::Next4( void )
 
     Pos = _mm_add_pd(Offset, Pos);
 
-    for (const auto &Elm : Charges)
-    {
-      if ((*(UINT64 *)&Elm.Charge) & (1ui64 << 63))
-      {
-        auto Dir = _mm_sub_pd(Pos, _mm_load_pd((dbl *)&Elm.Coord));
-
-        auto Len = _mm_mul_pd(Dir, Dir);
-        Len = _mm_hadd_pd(Len, Len);
-
-        auto Size = _mm_set_sd(Elm.Size * 2.0);
-        Size = _mm_mul_sd(Size, Size);
-
-        if (_mm_comile_sd(Len, Size))
-        {
-          Continue = false;
-          Pos = _mm_load_pd((dbl *)&Elm.Coord);
-          break;
-        }
-      }
-    }
-
+    Pos = CheckIntersection(Pos);
     _mm_store_pd(this->Pos, Pos);
   }
 
