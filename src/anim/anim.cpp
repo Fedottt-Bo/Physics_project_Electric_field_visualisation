@@ -478,6 +478,10 @@ namespace prj
    */
   void anim::OnMenuButton( UINT Id )
   {
+    /* Check window is active */
+    if (!win::IsActive)
+      return;
+
     /* Switch on button index */
     switch (Id)
     {
