@@ -1,7 +1,7 @@
 /* FILE NAME   : 'def.h'
  * PURPOSE     : Global definitions and includes header file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 29.03.2023.
+ * LAST UPDATE : 10.04.2023.
  */
 
 #ifndef __def_h__
@@ -13,6 +13,10 @@
 #include <Windows.h>
 #include <Windowsx.h>
 #include "../res/resource.h"
+
+/* Smart pointers for COM */
+#include <wrl.h>
+using Microsoft::WRL::ComPtr;
 
 /* I/O headers */
 #include <cstdio>
@@ -42,6 +46,7 @@
 #include <functional>
 #include <thread>
 #include <mutex>
+#include <filesystem>
 
 /* Undefine annoying standard macro-functions */
 #undef min

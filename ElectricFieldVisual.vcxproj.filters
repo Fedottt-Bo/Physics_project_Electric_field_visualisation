@@ -34,6 +34,9 @@
     <Filter Include="Source Files\utility\physics">
       <UniqueIdentifier>{c2b0d02e-5a42-4fe4-a069-a07ae96c9cb1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\utility\images">
+      <UniqueIdentifier>{cf052b70-0039-4db0-a4fa-97c4c24b2a0f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\win\win.cpp">
@@ -56,6 +59,9 @@
     </ClCompile>
     <ClCompile Include="src\utility\physics\ef_force_lines.cpp">
       <Filter>Source Files\utility\physics</Filter>
+    </ClCompile>
+    <ClCompile Include="src\utility\images\image.cpp">
+      <Filter>Source Files\utility\images</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -97,6 +103,12 @@
     </ClInclude>
     <ClInclude Include="src\utility\physics\physics_def.h">
       <Filter>Source Files\utility\physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Z:\!School\ElectricFieldVisual\src\utility\images\image_def.h">
+      <Filter>Source Files\utility\images</Filter>
+    </ClInclude>
+    <ClInclude Include="Z:\!School\ElectricFieldVisual\src\utility\images\image_save.hpp">
+      <Filter>Source Files\utility\images</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

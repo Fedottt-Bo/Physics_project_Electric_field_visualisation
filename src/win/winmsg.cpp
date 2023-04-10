@@ -2,7 +2,7 @@
  * PURPOSE     : WINAPI module.
  *               Message crackers realization file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 22.07.2022.
+ * LAST UPDATE : 10.04.2023.
  * NOTE        : Module namespace 'win'.
  */
 
@@ -29,9 +29,13 @@ namespace win
           break;
         else
         {
-          /* Displatch message to window */
-          TranslateMessage(&msg);
-          DispatchMessage(&msg);
+          /* Check accelerator translation */
+          if (!TranslateAcceleratorA(msg.hwnd, hMainMenuAccel, &msg))
+          {
+            /* Displatch message to window */
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+          }
         }
       else
         Idle();

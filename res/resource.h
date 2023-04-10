@@ -6,6 +6,7 @@
 #define IDD_DIALOG_SETTINGS             102
 #define IDD_DIALOG_HELP                 104
 #define IDB_BITMAP_LOGO_HELP            106
+#define IDR_ACCELERATOR_MAIN_MENU       109
 #define IDC_EDIT_LINES_COUNT            1003
 #define IDC_EDIT_LINES_LENGTH           1004
 #define IDC_HELP_AUTHOR_TEXT            1004
@@ -25,13 +26,14 @@
 #define ID_SCENE_LOAD                   40011
 #define ID_SCENE_LOADADD                40012
 #define ID_SCENE_CLEAR                  40013
+#define ID_SCENE_SCREENSHOT             40014
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        109
-#define _APS_NEXT_COMMAND_VALUE         40014
+#define _APS_NEXT_RESOURCE_VALUE        110
+#define _APS_NEXT_COMMAND_VALUE         40019
 #define _APS_NEXT_CONTROL_VALUE         1006
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

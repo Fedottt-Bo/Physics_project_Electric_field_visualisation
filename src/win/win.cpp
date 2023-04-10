@@ -2,7 +2,7 @@
  * PURPOSE     : WINAPI module.
  *               Main module functions.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 07.04.2023.
+ * LAST UPDATE : 10.04.2023.
  * NOTE        : Module namespace 'win'.
  */
 
@@ -55,10 +55,11 @@ namespace win
     if (!RegisterClass(&wc))
       exit(1);
 
-    hMenu = LoadMenuA(hInstance, (const CHAR *)IDR_MAIN_MENU);
+    hMainMenu = LoadMenuA(hInstance, (const CHAR *)IDR_MAIN_MENU);
+    hMainMenuAccel = LoadAcceleratorsA(hInstance, (const CHAR *)IDR_ACCELERATOR_MAIN_MENU);
     hWnd = CreateWindowExA(0, ClassName, WindowName, WS_OVERLAPPEDWINDOW,
                            CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-                           nullptr, hMenu, hInstance, reinterpret_cast<VOID *>(this));
+                           nullptr, hMainMenu, hInstance, reinterpret_cast<VOID *>(this));
 
     ShowWindow(hWnd, 1);
     UpdateWindow(hWnd);

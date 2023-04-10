@@ -2,7 +2,7 @@
  * PURPOSE     : WINAPI module.
  *               Module handle file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 20.07.2022.
+ * LAST UPDATE : 10.04.2023.
  * NOTE        : Module namespace 'win'.
  */
 
@@ -18,12 +18,14 @@ namespace win
   class win
   {
   protected:
-    HWND hWnd;           /* window handle */
-    HMENU hMenu;         /* window menu handle */
-    INT W, H;            /* window size */
-    HINSTANCE hInstance; /* application handle */
+    HWND hWnd;             /* window handle */
+    HMENU hMainMenu;       /* window menu handle */
+    HACCEL hMainMenuAccel; /* Main menu shortcuts accelerator */
+    INT W, H;              /* window size */
+    HINSTANCE hInstance;   /* application handle */
  
   private:
+
     /* Window handle function.
      * ARGUMENTS:
      *   - window handle:

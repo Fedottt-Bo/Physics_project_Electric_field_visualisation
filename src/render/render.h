@@ -1,7 +1,7 @@
 /* FILE NAME   : 'render.h'
  * PURPOSE     : Render module header file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 07.04.2023.
+ * LAST UPDATE : 10.04.2023.
  * NOTE        : Module namespace 'prj'.
  */
 
@@ -12,10 +12,6 @@
 #include <d2d1.h>
 #include <d2d1helper.h>
 #include <dwrite.h>
-
-/* Smart pointers */
-#include <wrl.h>
-using Microsoft::WRL::ComPtr;
 
 /* Project namespace */
 namespace prj

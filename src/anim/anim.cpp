@@ -1,13 +1,14 @@
 /* FILE NAME   : 'anim.cpp'
  * PURPOSE     : Animation module implementation file.
  * PROGRAMMER  : Fedor Borodulin.
- * LAST UPDATE : 07.04.2023.
+ * LAST UPDATE : 10.04.2023.
  * NOTE        : Module namespace 'prj'.
  */
 
 #include <pch.h>
 
 #include "anim.h"
+#include "utility/images/image_save.hpp"
 
 /* Project namespace */
 namespace prj
@@ -670,8 +671,9 @@ namespace prj
         else
           SetReevaluation();
 
-        InputState = input_state::None;
       }
+
+      InputState = input_state::None;
     }
       return;
     case ID_SCENE_SAVE:
@@ -693,6 +695,58 @@ namespace prj
 
           for (auto &Elm : Charges)
             File << "charge=" << Elm.Charge << " coord=" << Elm.Coord.X << ", " << Elm.Coord.Y << '\n';
+        }
+
+        InputState = input_state::None;
+      }
+      return;
+    case ID_SCENE_SCREENSHOT:
+      {
+        InputState = input_state::Dialog;
+
+        CHAR FileNameBuf[0x400] {};
+        OPENFILENAME FileName {sizeof (OPENFILENAME), hWnd, hInstance};
+        FileName.lpstrFile = FileNameBuf;
+        FileName.nMaxFile = (sizeof (FileNameBuf) / sizeof (*FileNameBuf)) - 1;
+        FileName.lpstrFilter = "Portalble Network Graphic\0*.png*\0\0";
+        FileName.lpstrDefExt = "png";
+
+        if (GetSaveFileName(&FileName))
+        {
+          /* Create Device Context */
+          HDC hDC = GetDC(NULL);
+          HDC hMemDC = CreateCompatibleDC(hDC);
+
+          /* Create temporary bitmap */
+          HBITMAP hBm;
+          DWORD *Pixels;
+
+          BITMAPINFO Info {};
+          Info.bmiHeader.biSize = sizeof (Info.bmiHeader);
+
+          RECT Size;
+          GetClientRect(win::hWnd, &Size);
+          Info.bmiHeader.biWidth = abs(Size.right - Size.left);
+          Info.bmiHeader.biHeight = -abs(Size.bottom - Size.top);
+
+          Info.bmiHeader.biBitCount = 32;
+          Info.bmiHeader.biPlanes = 1;
+
+          hBm = CreateDIBSection(hMemDC, &Info, 0, (VOID **)&Pixels, NULL, 0);
+
+          SelectObject(hMemDC, hBm);
+
+          PrintWindow(win::hWnd, hMemDC, PW_CLIENTONLY);
+
+          try 
+          {
+            img::SaveAsPng(FileNameBuf, Info.bmiHeader.biWidth, -Info.bmiHeader.biHeight, Pixels);
+          }
+          catch ( std::runtime_error & ) {}
+
+          DeleteDC(hMemDC);
+          DeleteObject(hBm);
+          ReleaseDC(NULL, hDC);
         }
 
         InputState = input_state::None;
